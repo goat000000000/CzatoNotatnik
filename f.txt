@@ -1,0 +1,549 @@
+Plan i gotowy szkic (PHP + MySQL + JS/Bootstrap) — komplet do wdrożenia
+
+Dobra — oto kompletny, praktyczny plan i gotowe fragmenty kodu, które od razu można skopiować i uruchomić. Znajdziesz tu: schemat bazy, przykładowe zapytania SQL, backend (PHP, PDO) z REST API, frontend (index.html + JS z pollingiem co 2s), strukturę projektu, oraz plik api-docs.md i propozycję podziału ról. Wszystko po polsku, jasne i zwięzłe.
+
+1. Struktura projektu
+/project-root
+├─ api/
+│  ├─ config.php         // DB + CORS + sesje
+│  ├─ auth.php           // login/logout, middleware role check
+│  ├─ messages.php       // GET/POST /messages
+│  ├─ board.php          // GET/POST /board
+│  ├─ notes.php          // GET/POST /notes
+│  └─ users.php          // opcjonalne: GET /users (online)
+├─ public/
+│  ├─ index.html
+│  ├─ app.js
+│  └─ styles.css
+├─ sql/
+│  └─ schema.sql
+├─ README.md
+└─ api-docs.md
+
+2. Schemat bazy (MySQL) — sql/schema.sql
+CREATE DATABASE IF NOT EXISTS classroom CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE classroom;
+
+CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  username VARCHAR(50) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('teacher','student') NOT NULL DEFAULT 'student',
+  last_online TIMESTAMP NULL DEFAULT NULL
+);
+
+CREATE TABLE messages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  text TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE board (
+  id INT PRIMARY KEY DEFAULT 1, -- tylko jeden wiersz
+  content TEXT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE notes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  content TEXT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Seed: przykładowi użytkownicy (hasła do zahashowania w PHP poniżej)
+INSERT INTO users (name, username, password_hash, role) VALUES
+('Nauczyciel', 'teacher1', '$2y$10$examplehashreplace', 'teacher'),
+('Uczeń A', 'student1', '$2y$10$examplehashreplace', 'student');
+-- W praktyce ustawiaj password_hash przez password_hash() w PHP
+
+3. Konfiguracja (PHP) — api/config.php
+<?php
+// config.php
+header('Content-Type: application/json; charset=utf-8');
+// Allow CORS for dev (adjust in prod)
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
+session_start();
+
+$DB_HOST = '127.0.0.1';
+$DB_NAME = 'classroom';
+$DB_USER = 'root';
+$DB_PASS = 'password';
+
+try {
+    $pdo = new PDO("mysql:host=$DB_HOST;dbname=$DB_NAME;charset=utf8mb4", $DB_USER, $DB_PASS, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+    ]);
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'DB connection failed']);
+    exit;
+}
+
+4. Proste logowanie / autoryzacja — api/auth.php
+<?php
+require_once 'config.php';
+
+// POST /login { username, password }
+// GET /logout
+
+$method = $_SERVER['REQUEST_METHOD'];
+
+if ($method === 'POST') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    $username = $data['username'] ?? '';
+    $password = $data['password'] ?? '';
+
+    $stmt = $pdo->prepare('SELECT id, name, password_hash, role FROM users WHERE username = ?');
+    $stmt->execute([$username]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($user && password_verify($password, $user['password_hash'])) {
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['role'] = $user['role'];
+        $_SESSION['name'] = $user['name'];
+        // update last_online
+        $pdo->prepare('UPDATE users SET last_online = NOW() WHERE id = ?')->execute([$user['id']]);
+        echo json_encode(['ok' => true, 'user' => ['id'=>$user['id'], 'name'=>$user['name'], 'role'=>$user['role']]]);
+    } else {
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid credentials']);
+    }
+    exit;
+}
+
+if ($method === 'GET') {
+    // logout? or session check
+    if (isset($_GET['action']) && $_GET['action'] === 'logout') {
+        session_destroy();
+        echo json_encode(['ok' => true]);
+        exit;
+    }
+    // session info
+    if (isset($_SESSION['user_id'])) {
+        echo json_encode(['user' => ['id'=>$_SESSION['user_id'], 'name'=>$_SESSION['name'], 'role'=>$_SESSION['role']]]);
+    } else {
+        http_response_code(401);
+        echo json_encode(['error' => 'Not authenticated']);
+    }
+    exit;
+}
+
+
+Middleware helper (use in other endpoints):
+
+function require_auth() {
+    if (!isset($_SESSION['user_id'])) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Not authenticated']);
+        exit;
+    }
+}
+function require_teacher() {
+    if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'teacher') {
+        http_response_code(403);
+        echo json_encode(['error' => 'Forbidden']);
+        exit;
+    }
+}
+
+5. Endpointy główne
+api/messages.php — GET /messages?last_id=X, POST /messages
+<?php
+require_once 'config.php';
+require_once 'auth.php'; // for middleware functions
+
+$method = $_SERVER['REQUEST_METHOD'];
+
+if ($method === 'GET') {
+    $last_id = isset($_GET['last_id']) ? (int)$_GET['last_id'] : 0;
+    $stmt = $pdo->prepare('SELECT m.id, m.text, m.created_at, u.id as user_id, u.name FROM messages m JOIN users u ON m.user_id = u.id WHERE m.id > ? ORDER BY m.id ASC');
+    $stmt->execute([$last_id]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode(['messages' => $rows]);
+    exit;
+}
+
+if ($method === 'POST') {
+    require_auth();
+    $data = json_decode(file_get_contents('php://input'), true);
+    $text = trim($data['text'] ?? '');
+    if ($text === '') {
+        http_response_code(400);
+        echo json_encode(['error' => 'Empty text']);
+        exit;
+    }
+    $stmt = $pdo->prepare('INSERT INTO messages (user_id, text) VALUES (?, ?)');
+    $stmt->execute([$_SESSION['user_id'], $text]);
+    $id = $pdo->lastInsertId();
+    // optional: return inserted message
+    $stmt = $pdo->prepare('SELECT m.id, m.text, m.created_at, u.id as user_id, u.name FROM messages m JOIN users u ON m.user_id = u.id WHERE m.id = ?');
+    $stmt->execute([$id]);
+    $msg = $stmt->fetch(PDO::FETCH_ASSOC);
+    echo json_encode(['message' => $msg]);
+    exit;
+}
+
+api/board.php — GET /board, POST /board
+<?php
+require_once 'config.php';
+require_once 'auth.php';
+
+$method = $_SERVER['REQUEST_METHOD'];
+
+if ($method === 'GET') {
+    $stmt = $pdo->query('SELECT content, updated_at FROM board WHERE id = 1');
+    $content = $stmt->fetch(PDO::FETCH_ASSOC);
+    // If row missing, create default
+    if (!$content) {
+        $pdo->prepare('INSERT INTO board (id, content) VALUES (1, "")')->execute();
+        $content = ['content'=>'', 'updated_at'=>null];
+    }
+    echo json_encode(['board' => $content]);
+    exit;
+}
+
+if ($method === 'POST') {
+    require_auth();
+    require_teacher(); // only teacher edits
+    $data = json_decode(file_get_contents('php://input'), true);
+    $content = $data['content'] ?? '';
+    $stmt = $pdo->prepare('UPDATE board SET content = ?, updated_at = NOW() WHERE id = 1');
+    $stmt->execute([$content]);
+    echo json_encode(['ok' => true, 'content' => $content]);
+    exit;
+}
+
+api/notes.php — GET /notes, POST /notes
+<?php
+require_once 'config.php';
+require_once 'auth.php';
+require_auth();
+
+$method = $_SERVER['REQUEST_METHOD'];
+
+if ($method === 'GET') {
+    $stmt = $pdo->prepare('SELECT id, content, updated_at FROM notes WHERE user_id = ?');
+    $stmt->execute([$_SESSION['user_id']]);
+    $note = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$note) {
+        echo json_encode(['note' => ['id'=>null,'content'=>'','updated_at'=>null]]);
+    } else {
+        echo json_encode(['note' => $note]);
+    }
+    exit;
+}
+
+if ($method === 'POST') {
+    $data = json_decode(file_get_contents('php://input'), true);
+    $content = $data['content'] ?? '';
+    // upsert
+    $stmt = $pdo->prepare('SELECT id FROM notes WHERE user_id = ?');
+    $stmt->execute([$_SESSION['user_id']]);
+    $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($existing) {
+        $pdo->prepare('UPDATE notes SET content = ?, updated_at = NOW() WHERE user_id = ?')->execute([$content, $_SESSION['user_id']]);
+    } else {
+        $pdo->prepare('INSERT INTO notes (user_id, content) VALUES (?, ?)')->execute([$_SESSION['user_id'], $content]);
+    }
+    echo json_encode(['ok' => true, 'content' => $content]);
+    exit;
+}
+
+6. Frontend — public/index.html (jednostronicowe, Bootstrap + JS)
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Klasa - prosty chat + tablica</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { padding: 1rem; }
+    #messages { height: 300px; overflow:auto; border:1px solid #ddd; padding:10px; background:#fafafa; }
+    #board { min-height: 120px; border:1px solid #ccc; padding:10px; background:#fff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="loginBox" class="mb-3">
+      <h3>Logowanie</h3>
+      <div class="row g-2">
+        <div class="col-md-3"><input id="username" class="form-control" placeholder="username"></div>
+        <div class="col-md-3"><input id="password" type="password" class="form-control" placeholder="password"></div>
+        <div class="col-md-2"><button id="btnLogin" class="btn btn-primary">Zaloguj</button></div>
+        <div class="col-md-4"><div id="loginInfo"></div></div>
+      </div>
+    </div>
+
+    <div id="app" style="display:none;">
+      <div class="row">
+        <div class="col-md-6">
+          <h5>Tablica nauczyciela</h5>
+          <div id="board" contenteditable="false"></div>
+          <div class="mt-2">
+            <button id="editBoard" class="btn btn-sm btn-outline-secondary">Edytuj (tylko nauczyciel)</button>
+            <button id="saveBoard" class="btn btn-sm btn-success" style="display:none;">Zapisz</button>
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <h5>Czat grupowy</h5>
+          <div id="messages"></div>
+          <div class="input-group mt-2">
+            <input id="msgInput" class="form-control" placeholder="Napisz wiadomość...">
+            <button id="sendMsg" class="btn btn-primary">Wyślij</button>
+          </div>
+        </div>
+      </div>
+
+      <hr>
+      <h5>Prywatne notatki</h5>
+      <textarea id="notes" class="form-control" rows="6"></textarea>
+      <div class="mt-2"><button id="saveNotes" class="btn btn-success btn-sm">Zapisz notatki</button></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = '../api'; // dostosuj do ścieżki
+    let user = null;
+    let lastMessageId = 0;
+    let pollTimer = null;
+
+    document.getElementById('btnLogin').addEventListener('click', login);
+    document.getElementById('sendMsg').addEventListener('click', sendMessage);
+    document.getElementById('saveNotes').addEventListener('click', saveNotes);
+    document.getElementById('editBoard').addEventListener('click', toggleEditBoard);
+    document.getElementById('saveBoard').addEventListener('click', saveBoard);
+
+    async function login(){
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const res = await fetch(API_BASE + '/auth.php', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({username, password})
+      });
+      if (res.ok) {
+        const data = await res.json();
+        user = data.user;
+        document.getElementById('loginBox').style.display='none';
+        document.getElementById('app').style.display='block';
+        initAfterLogin();
+      } else {
+        const err = await res.json();
+        document.getElementById('loginInfo').innerText = err.error || 'Błąd logowania';
+      }
+    }
+
+    function initAfterLogin(){
+      fetchBoard();
+      fetchNotes();
+      fetchMessages(); // initial
+      pollTimer = setInterval(fetchMessages, 2000); // polling co 2s
+    }
+
+    async function fetchMessages(){
+      try {
+        const res = await fetch(API_BASE + '/messages.php?last_id=' + lastMessageId, {credentials:'include'});
+        if (!res.ok) return;
+        const data = await res.json();
+        data.messages.forEach(m => {
+          appendMessage(m);
+          lastMessageId = Math.max(lastMessageId, m.id);
+        });
+      } catch(e){ console.error(e); }
+    }
+
+    function appendMessage(m){
+      const el = document.createElement('div');
+      el.innerHTML = `<small class="text-muted">${m.created_at} — <strong>${escapeHtml(m.name)}</strong>:</small> <div>${escapeHtml(m.text)}</div>`;
+      const box = document.getElementById('messages');
+      box.appendChild(el);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    async function sendMessage(){
+      const text = document.getElementById('msgInput').value.trim();
+      if (!text) return;
+      const res = await fetch(API_BASE + '/messages.php', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        body: JSON.stringify({text})
+      });
+      if (res.ok){
+        document.getElementById('msgInput').value = '';
+        // we rely on polling to fetch it (or process returned message)
+        const data = await res.json();
+        if (data.message) appendMessage(data.message);
+      } else {
+        alert('Błąd wysyłania');
+      }
+    }
+
+    async function fetchBoard(){
+      const res = await fetch(API_BASE + '/board.php', {credentials:'include'});
+      if (!res.ok) return;
+      const data = await res.json();
+      const board = data.board;
+      document.getElementById('board').innerText = board.content || '';
+      // if user is teacher, enable edit button
+      if (user.role === 'teacher') document.getElementById('editBoard').style.display = 'inline-block';
+      else document.getElementById('editBoard').style.display = 'none';
+    }
+
+    function toggleEditBoard(){
+      const boardEl = document.getElementById('board');
+      if (boardEl.getAttribute('contenteditable') === 'true') {
+        boardEl.setAttribute('contenteditable','false');
+        document.getElementById('saveBoard').style.display='none';
+      } else {
+        boardEl.setAttribute('contenteditable','true');
+        document.getElementById('saveBoard').style.display='inline-block';
+      }
+    }
+
+    async function saveBoard(){
+      const content = document.getElementById('board').innerText;
+      const res = await fetch(API_BASE + '/board.php', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        body: JSON.stringify({content})
+      });
+      if (res.ok) {
+        alert('Zapisano tablicę');
+        toggleEditBoard();
+      } else {
+        alert('Błąd zapisu tablicy');
+      }
+    }
+
+    async function fetchNotes(){
+      const res = await fetch(API_BASE + '/notes.php', {credentials:'include'});
+      if (!res.ok) return;
+      const data = await res.json();
+      document.getElementById('notes').value = data.note.content || '';
+    }
+
+    async function saveNotes(){
+      const content = document.getElementById('notes').value;
+      const res = await fetch(API_BASE + '/notes.php', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        credentials:'include',
+        body: JSON.stringify({content})
+      });
+      if (res.ok) alert('Notatki zapisane');
+      else alert('Błąd zapisu notatek');
+    }
+
+    function escapeHtml(s){ return s ? s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;') : ''; }
+  </script>
+</body>
+</html>
+
+
+Uwaga: credentials:'include' i sesje PHP wymagają wspólnej domeny / cookies. Przy oddzielnym frontendzie i backendzie rozważ JWT zamiast sesji.
+
+7. Dodatki / opcje ulepszeń
+
+Rejestracja: endpoint POST /register z password_hash() w PHP. (Walidacja, captcha dla produkcji.)
+
+Pokazywanie kto jest online: aktualizuj last_online w users przy każdym zapytaniu (np. w auth lub przy pollingu), a endpoint GET /users/online zwraca użytkowników z last_online > NOW() - INTERVAL 30 SECOND.
+
+Responsywność: Bootstrap zapewnia podstawę; dopracuj CSS.
+
+Bezpieczeństwo: przygotowania zapytań (PDO), ogranicz CORS, HTTPS, rate limit na messages.
+
+Skalowanie czatu: zamiast pollingu -> WebSocket (np. Ratchet w PHP) lub Node.js + socket.io, ale polling jest prosty i spełnia wymagania.
+
+Offline: zapisywać notatki lokalnie (localStorage) jako fallback.
+
+8. api-docs.md (zarys)
+# API - dokumentacja
+
+Base path: /api
+
+## POST /auth.php
+Body: { username, password }
+Response: { ok: true, user: {id, name, role} }
+
+## GET /auth.php?action=logout
+
+## GET /messages.php?last_id=X
+Response: { messages: [ {id, user_id, name, text, created_at}, ... ] }
+
+## POST /messages.php
+Body: { text }
+Auth: wymagana
+
+## GET /board.php
+Response: { board: { content, updated_at } }
+
+## POST /board.php
+Body: { content }
+Auth: teacher only
+
+## GET /notes.php
+Auth: required
+Response: { note: { id, content, updated_at } }
+
+## POST /notes.php
+Body: { content }
+Auth: required
+
+
+Dodaj przykłady request/response, kody błędów (401/403/400/500) w pełnej wersji.
+
+9. Propozycja podziału ról (praca zespołowa)
+
+Frontend Developer: public/index.html, app.js, responsywność, obsługa sesji.
+
+Backend Developer: endpointy w api/, zarządzanie sesjami, zabezpieczenia.
+
+UX/UI Designer: mockupy, prosty flow logowania/useability.
+
+Tester / Dokumentalista: testy funkcjonalne (logowanie, wysyłanie wiadomości, edycja tablicy), README, api-docs.md.
+
+Zadania do PR na GitHub: feature/login, feature/chat, feature/board, feature/notes.
+
+10. README (krótkie) — co umieścić w repo
+
+Instrukcja uruchomienia: import SQL, ustawienia api/config.php, uruchomienie serwera (Apache/Nginx + PHP).
+
+Ścieżki: /public jako root serwera lub prosty php -S localhost:8000 -t public dla frontendu i php -S localhost:8001 -t api dla API (ale w tym przypadku cookies sesji nie będą działać między portami — lepiej proxy/nginx).
+
+Testy manualne: krok po kroku.
+
+11. Kilka praktycznych uwag i wskazówek
+
+Sesje i cookies: przy dev ustaw SameSite=None; Secure jeśli używasz cross-site cookies; najprościej trzymać frontend w tym samym hostie co API.
+
+Polling co 2s: proste i działające; pamiętaj, że przy większej liczbie użytkowników lepiej WebSocket.
+
+Walidacja: sanityzuj dane po stronie serwera (np. max długość wiadomości).
+
+Rate limit: dodaj ograniczenia na wysyłanie wiadomości, aby uniknąć spamowania.
+
+Jeśli chcesz, mogę teraz:
+
+wygenerować pełne pliki (wszystkie api/*.php, public/index.html) i spakować do archiwum do pobrania,
+
+albo od razu dopisać implementację rejestracji i skrypt seedujący z prawidłowo zahashowanymi hasłami,
+
+albo zrobić prosty Dockerfile + docker-compose z MySQL i PHP-FPM + nginx.
+
+Którą z tych dodatkowych opcji wolisz — pełne pliki do pobrania, czy Docker/seed?
