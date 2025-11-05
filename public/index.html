@@ -19,7 +19,7 @@
     <div class="row g-2">
       <div class="col-md-3"><input id="username" class="form-control" placeholder="username"></div>
       <div class="col-md-3"><input id="password" type="password" class="form-control" placeholder="password"></div>
-      <div class="col-md-2"><button id="btnLogin" class="btn btn-primary">Zaloguj</button></div>
+      <div class="col-md-2"><button onclick="login()" id="btnLogin" class="btn btn-primary">Zaloguj</button></div>
       <div class="col-md-4"><div id="loginInfo"></div></div>
     </div>
     </div>
@@ -42,150 +42,14 @@
     
           <div class="box" id="chat">
             <h2>Chat</h2>
-            <div id="chatWindow"></div>
-            <input type="text" id="chatInput" placeholder="Napisz wiadomość...">
-            <button id="sendBtn">Wyślij</button>
+            <div id="messages"></div>
+            <input type="text" id="msgInput" placeholder="Napisz wiadomość...">
+            <button id="sendMsg">Wyślij</button>
           </div>
         </div>
       </div>
   </div>
 
-  <script>
-    const API_BASE = '../api'; // dostosuj do ścieżki
-    let user = null;
-    let lastMessageId = 0;
-    let pollTimer = null;
-
-    document.getElementById('btnLogin').addEventListener('click', login);
-    document.getElementById('sendMsg').addEventListener('click', sendMessage);
-    document.getElementById('saveNotes').addEventListener('click', saveNotes);
-    document.getElementById('editBoard').addEventListener('click', toggleEditBoard);
-    document.getElementById('saveBoard').addEventListener('click', saveBoard);
-
-    async function login(){
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
-      const res = await fetch(API_BASE + '/auth.php', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({username, password})
-      });
-      if (res.ok) {
-        const data = await res.json();
-        user = data.user;
-        document.getElementById('loginBox').style.display='none';
-        document.getElementById('app').style.display='block';
-        initAfterLogin();
-      } else {
-        const err = await res.json();
-        document.getElementById('loginInfo').innerText = err.error || 'Błąd logowania';
-      }
-    }
-
-    function initAfterLogin(){
-      fetchBoard();
-      fetchNotes();
-      fetchMessages(); // initial
-      pollTimer = setInterval(fetchMessages, 2000); // polling co 2s
-    }
-
-    async function fetchMessages(){
-      try {
-        const res = await fetch(API_BASE + '/messages.php?last_id=' + lastMessageId, {credentials:'include'});
-        if (!res.ok) return;
-        const data = await res.json();
-        data.messages.forEach(m => {
-          appendMessage(m);
-          lastMessageId = Math.max(lastMessageId, m.id);
-        });
-      } catch(e){ console.error(e); }
-    }
-
-    function appendMessage(m){
-      const el = document.createElement('div');
-      el.innerHTML = `<small class="text-muted">${m.created_at} — <strong>${escapeHtml(m.name)}</strong>:</small> <div>${escapeHtml(m.text)}</div>`;
-      const box = document.getElementById('messages');
-      box.appendChild(el);
-      box.scrollTop = box.scrollHeight;
-    }
-
-    async function sendMessage(){
-      const text = document.getElementById('msgInput').value.trim();
-      if (!text) return;
-      const res = await fetch(API_BASE + '/messages.php', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        credentials:'include',
-        body: JSON.stringify({text})
-      });
-      if (res.ok){
-        document.getElementById('msgInput').value = '';
-        // we rely on polling to fetch it (or process returned message)
-        const data = await res.json();
-        if (data.message) appendMessage(data.message);
-      } else {
-        alert('Błąd wysyłania');
-      }
-    }
-
-    async function fetchBoard(){
-      const res = await fetch(API_BASE + '/board.php', {credentials:'include'});
-      if (!res.ok) return;
-      const data = await res.json();
-      const board = data.board;
-      document.getElementById('board').innerText = board.content || '';
-      // if user is teacher, enable edit button
-      if (user.role === 'teacher') document.getElementById('editBoard').style.display = 'inline-block';
-      else document.getElementById('editBoard').style.display = 'none';
-    }
-
-    function toggleEditBoard(){
-      const boardEl = document.getElementById('board');
-      if (boardEl.getAttribute('contenteditable') === 'true') {
-        boardEl.setAttribute('contenteditable','false');
-        document.getElementById('saveBoard').style.display='none';
-      } else {
-        boardEl.setAttribute('contenteditable','true');
-        document.getElementById('saveBoard').style.display='inline-block';
-      }
-    }
-
-    async function saveBoard(){
-      const content = document.getElementById('board').innerText;
-      const res = await fetch(API_BASE + '/board.php', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        credentials:'include',
-        body: JSON.stringify({content})
-      });
-      if (res.ok) {
-        alert('Zapisano tablicę');
-        toggleEditBoard();
-      } else {
-        alert('Błąd zapisu tablicy');
-      }
-    }
-
-    async function fetchNotes(){
-      const res = await fetch(API_BASE + '/notes.php', {credentials:'include'});
-      if (!res.ok) return;
-      const data = await res.json();
-      document.getElementById('notes').value = data.note.content || '';
-    }
-
-    async function saveNotes(){
-      const content = document.getElementById('notes').value;
-      const res = await fetch(API_BASE + '/notes.php', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        credentials:'include',
-        body: JSON.stringify({content})
-      });
-      if (res.ok) alert('Notatki zapisane');
-      else alert('Błąd zapisu notatek');
-    }
-
-    function escapeHtml(s){ return s ? s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;') : ''; }
-  </script>
+  <script src="silnik.js"></script>
 </body>
 </html>
