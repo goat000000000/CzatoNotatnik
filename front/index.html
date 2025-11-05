@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notatki i Chat</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="left-panel">
+      <div class="box" id="teacher-note">
+        <h2>Notatka nauczyciela</h2>
+        <textarea id="teacherText" readonly>
+Witaj! Tu pojawi się notatka nauczyciela.
+        </textarea>
+      </div>
+      <div class="box" id="my-note">
+        <h2>Moja notatka</h2>
+        <textarea id="myText" placeholder="Zrób tu swoje notatki..."></textarea>
+        <button id="saveNote">Zapisz notatkę</button>
+      </div>
+    </div>
+
+    <div class="right-panel">
+      <div class="box" id="login">
+        <h2>Logowanie</h2>
+      <div class="row g-2">
+        <div class="col-md-3"><input id="username" class="form-control" placeholder="username"></div>
+        <div class="col-md-3"><input id="password" type="password" class="form-control" placeholder="password"></div>
+        <div class="col-md-2"><button id="btnLogin" class="btn btn-primary">Zaloguj</button></div>
+        <div class="col-md-4"><div id="loginInfo"></div></div>
+      </div>
+      </div>
+      <div class="box" id="chat">
+        <h2>Chat</h2>
+        <div id="chatWindow"></div>
+        <input type="text" id="chatInput" placeholder="Napisz wiadomość...">
+        <button id="sendBtn">Wyślij</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
