@@ -14,7 +14,7 @@
 </head>
 <body>
   <div class="container">
-    <div class="box" id="loginBox">
+    <div class="box3" id="loginBox">
       <h2>Logowanie</h2>
     <div class="row g-2">
       <div class="col-md-3"><input id="username" class="form-control" placeholder="username"></div>
@@ -29,26 +29,30 @@
         <div class="left-panel">
           <div class="box" id="teacher-note">
             <h2>Notatka nauczyciela</h2>
-            <textarea id="teacherText" readonly>
-    Witaj! Tu pojawi się notatka nauczyciela.
-            </textarea>
+            <textarea id="teacherText" class="textarea-nauczyciel" readonly></textarea>
+            <button id="saveTeacherNote" class="btn btn-primary mt-2">Zapisz notatkę</button>
           </div>
+    
           <div class="box" id="my-note">
             <h2>Moja notatka</h2>
-            <textarea id="myText" placeholder="Zrób tu swoje notatki..."></textarea>
+            <textarea id="myText" class="textarea-uczen" placeholder="Zrób tu swoje notatki..."></textarea>
             <button id="saveNote">Zapisz notatkę</button>
           </div>
         </div>
     
-          <div class="box" id="chat">
+        <div class="right-panel">
+          <div class="box1" id="chat">
             <h2>Chat</h2>
-            <div id="messages"></div>
-            <input type="text" id="msgInput" placeholder="Napisz wiadomość...">
-            <button id="sendMsg">Wyślij</button>
-          </div>
-        </div>
-      </div>
-  </div>
+            <div class="chat-content">
+              <div id="messages"></div>
+              <div class="chat-input">
+                <input type="text" id="msgInput" placeholder="Napisz wiadomość...">
+                <button id="sendMsg">Wyślij</button>
+              </div>
+            </div>
+          </div>          
+    </div>
+    
 
   <script src="silnik.js"></script>
 </body>

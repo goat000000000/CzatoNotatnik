@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Tester API</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+<div class="container mt-4">
+
+<h2>Tester API - Logowanie</h2>
+<div class="mb-2">
+  <input type="text" id="username" placeholder="username" class="form-control mb-1">
+  <input type="password" id="password" placeholder="password" class="form-control mb-1">
+  <button id="btnLogin" class="btn btn-primary">Zaloguj</button>
+  <button id="btnCheck" class="btn btn-secondary">Sprawdź sesję</button>
+  <button id="btnLogout" class="btn btn-danger">Wyloguj</button>
+</div>
+
+<h2>Notatka nauczyciela</h2>
+<div class="mb-2">
+  <textarea id="teacherText" class="form-control mb-1" rows="5" readonly></textarea>
+  <button id="btnLoadNote" class="btn btn-info">Pobierz notatkę</button>
+  <button id="btnSaveNote" class="btn btn-success">Zapisz notatkę</button>
+</div>
+
+<h2>Logi</h2>
+<pre id="log" style="background:#f8f9fa; padding:10px; height:200px; overflow:auto;"></pre>
+
+</div>
+
+<script>
+const logEl = document.getElementById("log");
+function log(msg){ logEl.textContent += msg + "\n"; logEl.scrollTop = logEl.scrollHeight; }
+
+// fetch z obsługą błędów i sesją
+async function safeFetch(url, options={}) {
+  try {
+    // zawsze przesyłamy ciasteczka sesji
+    options.credentials = "same-origin";
+    const res = await fetch(url, options);
+    if (!res.ok) throw new Error(res.status + " " + res.statusText);
+    const data = await res.json();
+    return data;
+  } catch(e) {
+    log("Błąd fetch: " + e.message);
+    return null;
+  }
+}
+
+// LOGIN
+async function login() {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value.trim();
+  if (!username || !password) { log("⚠️ Podaj login i hasło!"); return; }
+
+  const data = await safeFetch("api/auth.php", {
+    method:"POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({username,password})
+  });
+  if (!data) return;
+  log("LOGIN: " + JSON.stringify(data));
+
+  const teacherText = document.getElementById("teacherText");
+  if (data.success && data.role === "teacher") teacherText.removeAttribute("readonly");
+}
+
+// SPRAWDZENIE SESJI
+async function checkSession() {
+  const data = await safeFetch("api/auth.php");
+  if (!data) return;
+  log("SESSION: " + JSON.stringify(data));
+}
+
+// LOGOUT
+async function logout() {
+  const data = await safeFetch("api/auth.php", {method:"DELETE"});
+  if (!data) return;
+  log("LOGOUT: " + JSON.stringify(data));
+  document.getElementById("teacherText").setAttribute("readonly", true);
+}
+
+// POBIERANIE NOTATKI NAUCZYCIELA
+async function loadTeacherNote() {
+  const data = await safeFetch("api/teacher_note.php");
+  if (!data) return;
+  document.getElementById("teacherText").value = data.content || "";
+  log("LOAD NOTE: " + JSON.stringify(data));
+}
+
+// ZAPIS NOTATKI NAUCZYCIELA
+async function saveTeacherNote() {
+  const content = document.getElementById("teacherText").value.trim();
+  if (!content) { log("⚠️ Notatka jest pusta, nie zapisano."); return; }
+
+  const data = await safeFetch("api/teacher_note.php", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({content})
+  });
+  if (!data) return;
+  log("SAVE NOTE: " + JSON.stringify(data));
+}
+
+// EVENTY PRZYCISKÓW
+document.getElementById("btnLogin").addEventListener("click", login);
+document.getElementById("btnCheck").addEventListener("click", checkSession);
+document.getElementById("btnLogout").addEventListener("click", logout);
+document.getElementById("btnLoadNote").addEventListener("click", loadTeacherNote);
+document.getElementById("btnSaveNote").addEventListener("click", saveTeacherNote);
+
+</script>
+</body>
+</html>

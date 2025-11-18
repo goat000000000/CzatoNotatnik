@@ -31,9 +31,3 @@ CREATE TABLE notes (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
-
--- Seed: przykładowi użytkownicy (hasła do zahashowania w PHP poniżej)
-INSERT INTO users (name, username, password_hash, role) VALUES
-('Nauczyciel', 'teacher1', '$2y$10$examplehashreplace', 'teacher'),
-('Uczeń A', 'student1', '$2y$10$examplehashreplace', 'student');
--- W praktyce ustawiaj password_hash przez password_hash() w PHP
