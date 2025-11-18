@@ -1,4 +1,4 @@
-const API_BASE = '/k4p/prodzekt/api';
+const API_BASE = '/prodzekt/CzatoNotatnik/api';
 
 async function login() {
   const username = document.getElementById('username').value;
