@@ -3,13 +3,15 @@
 session_start();
 
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: http://10.103.8.110'); 
+header('Access-Control-Allow-Credentials: true');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-$host = 'localhost';
+
+$host = '10.103.8.110';
 $dbname = 'czatonotatnik';
-$user = 'root';
+$user = 'kamil';
 $pass = '';
 
 try {

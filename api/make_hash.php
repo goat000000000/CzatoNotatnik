@@ -1,6 +1,6 @@
 <?php
 // wGENERATOR HASU POZDRAWIAM
-$haslo = 'test123';
+$haslo = 'test1';
 
 $hash = password_hash($haslo, PASSWORD_DEFAULT);
 

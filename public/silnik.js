@@ -1,8 +1,9 @@
 window.addEventListener("DOMContentLoaded", checkLoginStatus);
 
+
 async function checkLoginStatus() {
   try {
-    const res = await fetch("../api/auth.php");
+    const res = await fetch("http://10.103.8.110/k4p/prodzekt/api/auth.php");
     const data = await res.json();
 
     if (data.logged) {
@@ -29,7 +30,7 @@ async function login() {
   info.innerText = "Logowanie...";
 
   try {
-    const res = await fetch("../api/auth.php", {
+    const res = await fetch("http://10.103.8.110/k4p/prodzekt/api/auth.php", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ username, password })
@@ -60,7 +61,7 @@ async function login() {
 
 async function loadTeacherNote() {
   try {
-    const res = await fetch("../api/teacher_note.php");
+    const res = await fetch("http://10.103.8.110/k4p/prodzekt/api/teacher_note.php");
     const data = await res.json();
     document.getElementById("teacherText").value = data.content || "";
   } catch (e) {
@@ -72,7 +73,7 @@ async function saveTeacherNote() {
   const content = document.getElementById("teacherText").value;
 
   try {
-    const res = await fetch("../api/teacher_note.php", {
+    const res = await fetch("http://10.103.8.110/k4p/prodzekt/api/teacher_note.php", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ content })
@@ -96,7 +97,7 @@ async function sendMsg() {
   if (!text) return;
 
   try {
-      const res = await fetch("../api/chat_send.php", {
+      const res = await fetch("http://10.103.8.110/k4p/prodzekt/api/chat_send.php", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
@@ -119,7 +120,7 @@ document.getElementById("msgInput").addEventListener("keypress", e => {
 
 async function loadMessages() {
   try {
-      const res = await fetch("../api/chat_get.php", {
+      const res = await fetch("http://10.103.8.110/k4p/prodzekt/api/chat_get.php", {
           method: "GET",
           credentials: "same-origin"
       });
