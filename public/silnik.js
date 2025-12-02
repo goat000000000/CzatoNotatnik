@@ -29,6 +29,8 @@ async function login() {
     document.getElementById("app").style.display = "block";
 
     loadTeacherNote();
+    loadMyNote();
+
 
     if (data.role === "teacher") {
       document.getElementById("teacherText").removeAttribute("readonly");
@@ -53,6 +55,8 @@ async function checkLoginStatus() {
         "" + data.user.name;
 
       loadTeacherNote();
+      loadMyNote();
+
 
       if (data.user.role === "teacher") {
         document.getElementById("teacherText").removeAttribute("readonly");
@@ -71,6 +75,7 @@ async function loadTeacherNote() {
     const res = await fetch("http://10.103.8.110/k4p/prodzekt/api/teacher_note.php");
     const data = await res.json();
     document.getElementById("teacherText").value = data.content || "";
+    loadMyNote();
   } catch (e) {
     console.error("Błąd:", e);
   }
@@ -165,3 +170,36 @@ async function logout() {
   });
   location.reload();
 }
+
+document.getElementById("saveNote").addEventListener("click", async () => {
+  const content = document.getElementById("myText").value;
+
+  try {
+    const res = await fetch("http://10.103.8.110/k4p/prodzekt/api/note_user.php", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ content })
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      alert("Notatka zapisana.");
+    }
+  } catch (e) {
+    console.error(e);
+  }
+});
+async function loadMyNote() {
+  try {
+    const res = await fetch("http://10.103.8.110/k4p/prodzekt/api/note_user.php");
+    const data = await res.json();
+
+    if (data.success) {
+      document.getElementById("myText").value = data.content || "";
+    }
+  } catch (e) {
+    console.error(e);
+  }
+}
+
