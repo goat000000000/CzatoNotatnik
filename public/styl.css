@@ -22,18 +22,16 @@ body {
   display:flex;
   flex-direction: column;
   gap: 20px;
-  background: black; /*dsdasddsadhgsfgasf*/
+  background: transparent; /*dsdasddsadhgsfgasf*/
   border-radius: 25px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   }
 
 .right-panel {
   width: 450px;
   flex-direction: column;
   gap: 20px;
-  background: black;
+  background: transparent;
   border-radius: 25px;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
 .box, .box1, .box3, .box2 {
