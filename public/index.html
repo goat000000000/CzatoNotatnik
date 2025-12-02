@@ -30,7 +30,7 @@
           <div class="box" id="teacher-note">
             <h2>Notatka nauczyciela</h2>
             <textarea id="teacherText" class="textarea-nauczyciel" readonly></textarea>
-            <button id="saveTeacherNote" class="btn btn-primary mt-2">Zapisz notatkę</button>
+            <button id="saveTeacherNote" style="display: none;" class="btn btn-primary mt-2">Zapisz notatkę</button>
           </div>
     
           <div class="box" id="my-note">
@@ -41,6 +41,12 @@
         </div>
     
         <div class="right-panel">
+          <div class="box2" id="logout">
+            <h4>Zalogowany jako:<br> <span id="usernameDisplay"></span><br><button class="btn btn-danger btn-sm" id="loguotbutton" onclick="logout()">Wyloguj</button> </h4> 
+            
+            <div class="logout-content">
+            </div>
+          </div>    
           <div class="box1" id="chat">
             <h2>Chat</h2>
             <div class="chat-content">

@@ -5,7 +5,7 @@ require_once 'auth_middleware.php';
 require_login();
 
 $stmt = $pdo->query("
-    SELECT messages.text, messages.created_at, users.username 
+    SELECT messages.text, messages.created_at, users.name 
     FROM messages 
     JOIN users ON users.id = messages.user_id
     ORDER BY messages.id DESC 

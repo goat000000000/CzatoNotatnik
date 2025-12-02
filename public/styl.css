@@ -22,7 +22,7 @@ body {
   display:flex;
   flex-direction: column;
   gap: 20px;
-  background: #fdfdfd;
+  background: black; /*dsdasddsadhgsfgasf*/
   border-radius: 25px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
   }
@@ -31,12 +31,12 @@ body {
   width: 450px;
   flex-direction: column;
   gap: 20px;
-  background: #fdfdfd;
+  background: black;
   border-radius: 25px;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
-.box, .box1, .box3 {
+.box, .box1, .box3, .box2 {
   background: white;
   border: 3px solid black;
   border-radius: 20px;
@@ -45,24 +45,29 @@ body {
   transition: box-shadow 0.3s ease;
 }
 
-.box:hover, .box1:hover, .box3:hover {
-  box-shadow: 0 0 25px rgba(0, 0, 0, 0.25);
+.box:hover, .box1:hover, .box3:hover, .box2:hover {
+  box-shadow: 0 0 35px rgba(0, 0, 0, 0.25);
 }
 
 .box  {
-  height: 450px;
+  height: 434px;
   width: auto;
 }
 
 .box1 {
-  height: 920px;
+  height: 720px;
   width: auto;
+}
+.box2 {
+  height: 150px;
+  width: auto;
+  margin-bottom: 20px;
 }
 
 #chat {
   display: flex;
   flex-direction: column;
-  height: 920px;
+  height: 720px;
 }
 
 .chat-content {
@@ -108,9 +113,10 @@ body {
 }
 
 
-h2 {
+h2, h4 {
   text-align: center;
   margin-top: 0;
+  
 }
 
 .textarea-nauczyciel { 
@@ -164,6 +170,8 @@ button:hover {
 
 
 
+
+
 @media (max-width: 768px) {
   body {
     padding: 10px;
@@ -187,7 +195,7 @@ button:hover {
     height: 200px;
   }
 
-  h2 {
+  h2, h4 {
     font-size: 1.1rem;
   }
 

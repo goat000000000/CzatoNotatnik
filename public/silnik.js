@@ -1,26 +1,7 @@
 window.addEventListener("DOMContentLoaded", checkLoginStatus);
 
 
-async function checkLoginStatus() {
-  try {
-    const res = await fetch("http://10.103.8.110/k4p/prodzekt/api/auth.php");
-    const data = await res.json();
 
-    if (data.logged) {
-      document.getElementById("loginBox").style.display = "none";
-      document.getElementById("app").style.display = "block";
-
-      loadTeacherNote();
-
-      if (data.user.role === "teacher") {
-        document.getElementById("teacherText").removeAttribute("readonly");
-        document.getElementById("saveTeacherNote").onclick = saveTeacherNote;
-      }
-    }
-  } catch (e) {
-    console.error("Błąd:", e);
-  }
-}
 
 async function login() {
   const username = document.getElementById("username").value.trim();
@@ -52,12 +33,38 @@ async function login() {
     if (data.role === "teacher") {
       document.getElementById("teacherText").removeAttribute("readonly");
       document.getElementById("saveTeacherNote").onclick = saveTeacherNote;
+      document.getElementById("saveTeacherNote").style.display = "block";
     }
   } catch (e) {
     console.error("Błąd:", e);
     info.innerText = "Błąd po stronie serwera.";
   }
 }
+async function checkLoginStatus() {
+  try {
+    const res = await fetch("http://10.103.8.110/k4p/prodzekt/api/auth.php");
+    const data = await res.json();
+
+    if (data.logged) {
+      document.getElementById("loginBox").style.display = "none";
+      document.getElementById("app").style.display = "block";
+
+      document.getElementById("usernameDisplay").innerText =
+        "" + data.user.name;
+
+      loadTeacherNote();
+
+      if (data.user.role === "teacher") {
+        document.getElementById("teacherText").removeAttribute("readonly");
+        document.getElementById("saveTeacherNote").onclick = saveTeacherNote;
+        document.getElementById("saveTeacherNote").style.display = "block";
+      }
+    }
+  } catch (e) {
+    console.error("Błąd:", e);
+  }
+}
+
 
 async function loadTeacherNote() {
   try {
@@ -136,7 +143,7 @@ async function loadMessages() {
       data.messages.reverse().forEach(msg => {
           const div = document.createElement("div");
           div.className = "msg";
-          div.innerHTML = `<b>${msg.username}</b>: ${msg.text}`;
+          div.innerHTML = `<b>${msg.name}</b>: ${msg.text}`;
           box.appendChild(div);
       });
 
@@ -151,3 +158,10 @@ setInterval(() => {
       loadMessages();
   }
 }, 2000);
+
+async function logout() {
+  await fetch("http://10.103.8.110/k4p/prodzekt/api/auth.php", {
+    method: "DELETE",
+  });
+  location.reload();
+}
